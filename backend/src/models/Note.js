@@ -15,6 +15,12 @@ const NoteSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  // Associate notes with users
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   // Store references to other notes this note links to
   links: [{
     type: mongoose.Schema.Types.ObjectId,

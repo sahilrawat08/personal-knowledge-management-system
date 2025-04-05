@@ -91,55 +91,86 @@ const EmptyState = styled.div`
   color: ${({ theme }) => theme.colors.text.secondary};
 `;
 
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const ErrorMessage = styled.div`
+  background-color: ${({ theme }) => theme.colors.error}10;
+  color: ${({ theme }) => theme.colors.error};
+  padding: ${({ theme }) => theme.spacing.md};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const RetryButton = styled.button`
+  background: none;
+  border: 1px solid ${({ theme }) => theme.colors.error};
+  color: ${({ theme }) => theme.colors.error};
+  padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: ${({ theme }) => theme.colors.error}10;
+  }
+`;
+
 const NoteList = () => {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const response = await api.get('/notes');
-        setNotes(response.data);
-        setLoading(false);
-      } catch (err) {
-        setError(err.message);
-        setLoading(false);
-      }
-    };
+  const fetchNotes = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await api.get('/notes');
+      setNotes(response.data);
+    } catch (err) {
+      console.error('Error fetching notes:', err);
+      setError(err.response?.data?.message || 'Failed to load notes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchNotes();
   }, []);
 
-  if (loading) {
-    return <EmptyState>Loading notes...</EmptyState>;
-  }
+  const renderContent = () => {
+    if (loading) {
+      return <LoadingSpinner>Loading notes...</LoadingSpinner>;
+    }
 
-  if (error) {
-    return <EmptyState>Error: {error}</EmptyState>;
-  }
+    if (error) {
+      return (
+        <ErrorMessage>
+          <span>{error}</span>
+          <RetryButton onClick={fetchNotes}>Retry</RetryButton>
+        </ErrorMessage>
+      );
+    }
 
-  if (notes.length === 0) {
-    return (
-      <Container>
-        <Header>
-          <Title>My Notes</Title>
-          <CreateButton to="/notes/new">Create Note</CreateButton>
-        </Header>
+    if (notes.length === 0) {
+      return (
         <EmptyState>
           <p>You haven't created any notes yet.</p>
           <CreateButton to="/notes/new">Create your first note</CreateButton>
         </EmptyState>
-      </Container>
-    );
-  }
+      );
+    }
 
-  return (
-    <Container>
-      <Header>
-        <Title>My Notes</Title>
-        <CreateButton to="/notes/new">Create Note</CreateButton>
-      </Header>
+    return (
       <NoteGrid>
         {notes.map((note) => (
           <NoteCard key={note._id} to={`/notes/${note._id}`}>
@@ -155,6 +186,16 @@ const NoteList = () => {
           </NoteCard>
         ))}
       </NoteGrid>
+    );
+  };
+
+  return (
+    <Container>
+      <Header>
+        <Title>My Notes</Title>
+        <CreateButton to="/notes/new">Create Note</CreateButton>
+      </Header>
+      {renderContent()}
     </Container>
   );
 };
