@@ -10,6 +10,7 @@ const morgan = require('morgan');
 dotenv.config();
 
 // Import routes
+const authRoutes = require('./routes/authRoutes');
 const noteRoutes = require('./routes/noteRoutes');
 const flashcardRoutes = require('./routes/flashcardRoutes');
 const graphRoutes = require('./routes/graphRoutes');
@@ -33,27 +34,19 @@ app.use(express.urlencoded({ extended: true }));
 // Logging middleware
 app.use(morgan('dev'));
 
-// Database connection with retry logic
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('Connected to MongoDB');
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-    // Retry connection after 5 seconds
-    setTimeout(connectDB, 5000);
-  }
-};
-
-connectDB();
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('MongoDB Connected'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // Routes
-app.use('/api/notes', noteRoutes);
-app.use('/api/flashcards', flashcardRoutes);
-app.use('/api/graph', graphRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/notes', require('./middleware/auth'), noteRoutes);
+app.use('/api/flashcards', require('./middleware/auth'), flashcardRoutes);
+app.use('/api/graph', require('./middleware/auth'), graphRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -67,10 +60,7 @@ app.get('/health', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
+  res.status(500).json({ message: 'Something went wrong!' });
 });
 
 // Handle unhandled routes

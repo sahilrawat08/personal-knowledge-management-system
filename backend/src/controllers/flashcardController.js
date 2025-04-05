@@ -42,7 +42,7 @@ exports.getFlashcardsByNoteId = async (req, res) => {
 exports.getFlashcardById = async (req, res) => {
   try {
     const flashcard = await Flashcard.findById(req.params.id)
-      .populate('noteReference');
+      .populate('noteReference', 'title');
     if (!flashcard) {
       return res.status(404).json({ message: 'Flashcard not found' });
     }
@@ -55,13 +55,21 @@ exports.getFlashcardById = async (req, res) => {
 // Create flashcard
 exports.createFlashcard = async (req, res) => {
   try {
-    // Verify the note exists
-    const noteExists = await Note.findById(req.body.noteReference);
-    if (!noteExists) {
-      return res.status(404).json({ message: 'Referenced note not found' });
+    const { noteReference, ...flashcardData } = req.body;
+    
+    // If noteReference is provided and not the default ObjectId, verify it exists
+    if (noteReference && noteReference !== '000000000000000000000000') {
+      const noteExists = await Note.findById(noteReference);
+      if (!noteExists) {
+        return res.status(404).json({ message: 'Referenced note not found' });
+      }
+      flashcardData.noteReference = noteReference;
+    } else {
+      // If no valid noteReference, don't include it
+      delete flashcardData.noteReference;
     }
     
-    const newFlashcard = new Flashcard(req.body);
+    const newFlashcard = new Flashcard(flashcardData);
     const savedFlashcard = await newFlashcard.save();
     res.status(201).json(savedFlashcard);
   } catch (error) {

@@ -14,7 +14,7 @@ const FlashcardSchema = new mongoose.Schema({
   noteReference: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Note',
-    required: true
+    required: false
   },
   tags: [{
     type: String,

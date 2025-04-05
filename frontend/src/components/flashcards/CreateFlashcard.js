@@ -1,8 +1,8 @@
 // frontend/src/components/flashcards/CreateFlashcard.js
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import styled from 'styled-components';
+import { createFlashcard, getNote } from '../../services/api';
 
 const Container = styled.div`
   padding: 20px;
@@ -63,6 +63,33 @@ const Button = styled.button`
 const ErrorMessage = styled.div`
   color: #d32f2f;
   margin-top: 15px;
+  padding: 10px;
+  background-color: #ffebee;
+  border-radius: 4px;
+`;
+
+const TagsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+`;
+
+const Tag = styled.div`
+  background: #e0e0e0;
+  padding: 5px 10px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+`;
+
+const TagRemoveButton = styled.span`
+  margin-left: 5px;
+  cursor: pointer;
+  &:hover {
+    color: #d32f2f;
+  }
 `;
 
 const CreateFlashcard = () => {
@@ -72,26 +99,29 @@ const CreateFlashcard = () => {
   const [flashcard, setFlashcard] = useState({
     question: '',
     answer: '',
-    noteReference: noteId || '',
+    noteReference: noteId || '000000000000000000000000', // Default ObjectId if no note
     tags: []
   });
   
   const [tagInput, setTagInput] = useState('');
   const [error, setError] = useState('');
   const [noteTitle, setNoteTitle] = useState('');
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
-    if (noteId) {
-      // Fetch note details to show the title
-      axios.get(`http://localhost:5000/api/notes/${noteId}`)
-        .then(response => {
+    const fetchNoteDetails = async () => {
+      if (noteId) {
+        try {
+          const response = await getNote(noteId);
           setNoteTitle(response.data.title);
-        })
-        .catch(error => {
+        } catch (error) {
           console.error('Error fetching note:', error);
           setError('Failed to fetch note details');
-        });
-    }
+        }
+      }
+    };
+    
+    fetchNoteDetails();
   }, [noteId]);
   
   const handleChange = (e) => {
@@ -128,13 +158,17 @@ const CreateFlashcard = () => {
   
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     
     try {
-      await axios.post('http://localhost:5000/api/flashcards', flashcard);
+      await createFlashcard(flashcard);
       navigate(noteId ? `/notes/${noteId}` : '/flashcards');
     } catch (error) {
       console.error('Error creating flashcard:', error);
-      setError('Failed to create flashcard');
+      setError(error.response?.data?.message || 'Failed to create flashcard. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -152,6 +186,7 @@ const CreateFlashcard = () => {
             value={flashcard.question}
             onChange={handleChange}
             required
+            placeholder="Enter your question here..."
           />
         </FormGroup>
         
@@ -163,6 +198,7 @@ const CreateFlashcard = () => {
             value={flashcard.answer}
             onChange={handleChange}
             required
+            placeholder="Enter the answer here..."
           />
         </FormGroup>
         
@@ -175,33 +211,21 @@ const CreateFlashcard = () => {
             onKeyPress={handleTagKeyPress}
             placeholder="Add tags and press Enter"
           />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
+          <TagsContainer>
             {flashcard.tags.map(tag => (
-              <div 
-                key={tag} 
-                style={{ 
-                  background: '#e0e0e0', 
-                  padding: '5px 10px', 
-                  borderRadius: '15px', 
-                  display: 'flex', 
-                  alignItems: 'center' 
-                }}
-              >
+              <Tag key={tag}>
                 {tag}
-                <span 
-                  style={{ marginLeft: '5px', cursor: 'pointer' }} 
-                  onClick={() => removeTag(tag)}
-                >
-                  ×
-                </span>
-              </div>
+                <TagRemoveButton onClick={() => removeTag(tag)}>×</TagRemoveButton>
+              </Tag>
             ))}
-          </div>
+          </TagsContainer>
         </FormGroup>
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
         
-        <Button type="submit">Create Flashcard</Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Creating...' : 'Create Flashcard'}
+        </Button>
       </Form>
     </Container>
   );

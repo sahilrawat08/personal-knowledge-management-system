@@ -11,6 +11,33 @@ exports.getAllNotes = async (req, res) => {
   }
 };
 
+// Get all unique tags
+exports.getAllTags = async (req, res) => {
+  try {
+    const notes = await Note.find().select('tags');
+    const tags = new Set();
+    notes.forEach(note => {
+      if (note.tags) {
+        note.tags.forEach(tag => tags.add(tag));
+      }
+    });
+    res.status(200).json(Array.from(tags));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get notes by tag
+exports.getNotesByTag = async (req, res) => {
+  try {
+    const { tag } = req.params;
+    const notes = await Note.find({ tags: tag });
+    res.status(200).json(notes);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Get a single note by ID
 exports.getNoteById = async (req, res) => {
   try {

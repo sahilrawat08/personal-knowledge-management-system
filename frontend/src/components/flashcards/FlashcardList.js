@@ -1,8 +1,8 @@
 // frontend/src/components/flashcards/FlashcardList.js
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import styled from 'styled-components';
+import { getFlashcards, getDueFlashcards, deleteFlashcard } from '../../services/api';
 
 const Container = styled.div`
   padding: 20px;
@@ -43,6 +43,38 @@ const StatLabel = styled.div`
   color: #666;
 `;
 
+const FilterContainer = styled.div`
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+`;
+
+const SearchInput = styled.input`
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  flex: 1;
+  font-size: 14px;
+  
+  &:focus {
+    outline: none;
+    border-color: #2196f3;
+  }
+`;
+
+const TagSelect = styled.select`
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-width: 150px;
+  font-size: 14px;
+  
+  &:focus {
+    outline: none;
+    border-color: #2196f3;
+  }
+`;
+
 const FlashcardGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -57,6 +89,12 @@ const FlashcardCard = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
+  transition: transform 0.2s;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
 `;
 
 const FlashcardQuestion = styled.div`
@@ -91,55 +129,121 @@ const FlashcardTags = styled.div`
 `;
 
 const Tag = styled.span`
-  background-color: #e0e0e0;
-  padding: 3px 8px;
-  border-radius: 15px;
+  background-color: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 8px;
+  border-radius: 12px;
   font-size: 12px;
 `;
 
-const Button = styled.button`
-  padding: 10px 15px;
-  background-color: #4a86e8;
-  color: white;
+const ActionButton = styled.button`
+  padding: 8px 16px;
   border: none;
   border-radius: 4px;
+  font-weight: 500;
   cursor: pointer;
-  font-weight: 600;
+  background-color: ${props => props.primary ? '#2196f3' : props.danger ? '#f44336' : '#e0e0e0'};
+  color: ${props => props.primary || props.danger ? 'white' : '#333'};
   
   &:hover {
-    background-color: #3b78e7;
+    opacity: 0.9;
   }
 `;
 
-const FilterContainer = styled.div`
-  display: flex;
-  gap: 10px;
+const LoadingSpinner = styled.div`
+  text-align: center;
+  padding: 20px;
+  color: #666;
+`;
+
+const ErrorMessage = styled.div`
+  color: #d32f2f;
+  background-color: #ffebee;
+  padding: 10px;
+  border-radius: 4px;
   margin-bottom: 20px;
 `;
 
-const FilterInput = styled.input`
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  flex: 1;
+const ReviewButton = styled(ActionButton)`
+  background-color: ${props => props.due ? '#4caf50' : '#e0e0e0'};
+  color: ${props => props.due ? 'white' : '#333'};
+  margin-right: 10px;
 `;
 
-const Select = styled.select`
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-`;
-
-const ActionBar = styled.div`
+const HeaderActions = styled.div`
   display: flex;
   gap: 10px;
 `;
 
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 40px;
-  background-color: #f9f9f9;
+const FilterBadge = styled.span`
+  background-color: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  margin-left: 10px;
+`;
+
+const SortSelect = styled(TagSelect)`
+  min-width: 120px;
+`;
+
+const CardActions = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+`;
+
+const PreviewButton = styled.button`
+  background: none;
+  border: none;
+  color: #1976d2;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  padding: 20px;
   border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  
+  &:hover {
+    color: #333;
+  }
 `;
 
 const FlashcardList = () => {
@@ -148,12 +252,17 @@ const FlashcardList = () => {
   const [filteredFlashcards, setFilteredFlashcards] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTag, setFilterTag] = useState('');
+  const [sortBy, setSortBy] = useState('nextReview');
   const [allTags, setAllTags] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     dueToday: 0,
     reviewed: 0
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [previewCard, setPreviewCard] = useState(null);
+  const [showAnswer, setShowAnswer] = useState(false);
   
   useEffect(() => {
     fetchFlashcards();
@@ -161,8 +270,11 @@ const FlashcardList = () => {
   
   const fetchFlashcards = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       // Get all flashcards
-      const response = await axios.get('http://localhost:5000/api/flashcards');
+      const response = await getFlashcards();
       const cards = response.data;
       setFlashcards(cards);
       setFilteredFlashcards(cards);
@@ -170,12 +282,14 @@ const FlashcardList = () => {
       // Extract all unique tags
       const tagsSet = new Set();
       cards.forEach(card => {
-        card.tags.forEach(tag => tagsSet.add(tag));
+        if (card.tags && Array.isArray(card.tags)) {
+          card.tags.forEach(tag => tagsSet.add(tag));
+        }
       });
-      setAllTags(Array.from(tagsSet));
+      setAllTags(Array.from(tagsSet).sort());
       
       // Get due cards count
-      const dueResponse = await axios.get('http://localhost:5000/api/flashcards/due');
+      const dueResponse = await getDueFlashcards();
       
       // Calculate stats
       setStats({
@@ -184,29 +298,47 @@ const FlashcardList = () => {
         reviewed: cards.filter(card => card.reviewCount > 0).length
       });
     } catch (error) {
+      setError('Failed to fetch flashcards. Please try again later.');
       console.error('Error fetching flashcards:', error);
+    } finally {
+      setLoading(false);
     }
   };
   
   useEffect(() => {
-    // Filter flashcards based on search term and tag
+    // Filter and sort flashcards
     let filtered = flashcards;
     
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(card => 
-        card.question.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        card.answer.toLowerCase().includes(searchTerm.toLowerCase())
+        card.question.toLowerCase().includes(searchLower) || 
+        card.answer.toLowerCase().includes(searchLower)
       );
     }
     
     if (filterTag) {
       filtered = filtered.filter(card => 
-        card.tags.includes(filterTag)
+        card.tags && Array.isArray(card.tags) && card.tags.includes(filterTag)
       );
     }
     
+    // Sort flashcards
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'nextReview':
+          return new Date(a.nextReview) - new Date(b.nextReview);
+        case 'created':
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'reviewed':
+          return b.reviewCount - a.reviewCount;
+        default:
+          return 0;
+      }
+    });
+    
     setFilteredFlashcards(filtered);
-  }, [searchTerm, filterTag, flashcards]);
+  }, [searchTerm, filterTag, sortBy, flashcards]);
   
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
@@ -216,12 +348,27 @@ const FlashcardList = () => {
     setFilterTag(e.target.value);
   };
   
+  const handleSortChange = (e) => {
+    setSortBy(e.target.value);
+  };
+  
+  const handlePreview = (card) => {
+    setPreviewCard(card);
+    setShowAnswer(false);
+  };
+  
+  const closePreview = () => {
+    setPreviewCard(null);
+    setShowAnswer(false);
+  };
+  
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this flashcard?')) {
       try {
-        await axios.delete(`http://localhost:5000/api/flashcards/${id}`);
-        fetchFlashcards(); // Refresh the list
+        await deleteFlashcard(id);
+        await fetchFlashcards(); // Refresh the list
       } catch (error) {
+        setError('Failed to delete flashcard. Please try again.');
         console.error('Error deleting flashcard:', error);
       }
     }
@@ -233,24 +380,44 @@ const FlashcardList = () => {
     return date.toLocaleDateString();
   };
   
+  if (loading) {
+    return (
+      <Container>
+        <LoadingSpinner>Loading flashcards...</LoadingSpinner>
+      </Container>
+    );
+  }
+  
   return (
     <Container>
       <Header>
-        <h2>Flashcards</h2>
-        <ActionBar>
-          <Button onClick={() => navigate('/flashcards/review')}>
-            Review Due Cards ({stats.dueToday})
-          </Button>
-          <Button onClick={() => navigate('/flashcards/create')}>
+        <div>
+          <h2>
+            Flashcards
+            {(searchTerm || filterTag) && (
+              <FilterBadge>
+                {filteredFlashcards.length} of {flashcards.length}
+              </FilterBadge>
+            )}
+          </h2>
+        </div>
+        <HeaderActions>
+          <ReviewButton 
+            due={stats.dueToday > 0}
+            onClick={() => navigate('/flashcards/review')}
+          >
+            Review ({stats.dueToday})
+          </ReviewButton>
+          <ActionButton primary onClick={() => navigate('/flashcards/create')}>
             Create Flashcard
-          </Button>
-        </ActionBar>
+          </ActionButton>
+        </HeaderActions>
       </Header>
       
       <StatsContainer>
         <StatCard>
           <StatValue>{stats.total}</StatValue>
-          <StatLabel>Total Flashcards</StatLabel>
+          <StatLabel>Total Cards</StatLabel>
         </StatCard>
         <StatCard>
           <StatValue>{stats.dueToday}</StatValue>
@@ -262,66 +429,86 @@ const FlashcardList = () => {
         </StatCard>
       </StatsContainer>
       
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      
       <FilterContainer>
-        <FilterInput
+        <SearchInput
           type="text"
           placeholder="Search flashcards..."
           value={searchTerm}
           onChange={handleSearchChange}
         />
-        <Select value={filterTag} onChange={handleTagFilterChange}>
+        <TagSelect value={filterTag} onChange={handleTagFilterChange}>
           <option value="">All Tags</option>
           {allTags.map(tag => (
             <option key={tag} value={tag}>{tag}</option>
           ))}
-        </Select>
+        </TagSelect>
+        <SortSelect value={sortBy} onChange={handleSortChange}>
+          <option value="nextReview">Next Review</option>
+          <option value="created">Recently Created</option>
+          <option value="reviewed">Most Reviewed</option>
+        </SortSelect>
       </FilterContainer>
       
-      {filteredFlashcards.length === 0 ? (
-        <EmptyState>
-          <h3>No flashcards found</h3>
-          {searchTerm || filterTag ? (
-            <p>Try adjusting your search or filter criteria.</p>
-          ) : (
-            <p>Start by creating your first flashcard!</p>
-          )}
-        </EmptyState>
-      ) : (
-        <FlashcardGrid>
-          {filteredFlashcards.map(card => (
-            <FlashcardCard key={card._id}>
-              <FlashcardQuestion>{card.question}</FlashcardQuestion>
-              <FlashcardAnswer>{card.answer}</FlashcardAnswer>
-              
+      <FlashcardGrid>
+        {filteredFlashcards.map(card => (
+          <FlashcardCard key={card._id}>
+            <FlashcardQuestion>{card.question}</FlashcardQuestion>
+            <FlashcardAnswer>{card.answer}</FlashcardAnswer>
+            {card.tags && card.tags.length > 0 && (
               <FlashcardTags>
                 {card.tags.map(tag => (
-                  <Tag key={tag} onClick={() => setFilterTag(tag)}>
-                    {tag}
-                  </Tag>
+                  <Tag key={tag}>{tag}</Tag>
                 ))}
               </FlashcardTags>
-              
-              <FlashcardMeta>
-                <div>From note: <Link to={`/notes/${card.noteReference._id}`}>
-                  {card.noteReference.title}
-                </Link></div>
-                <div>Next review: {formatDate(card.nextReview)}</div>
-                <div>Review count: {card.reviewCount}</div>
-                <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                  <Link to={`/flashcards/edit/${card._id}`} style={{ color: '#4a86e8' }}>
-                    Edit
-                  </Link>
-                  <span 
-                    style={{ color: '#f44336', cursor: 'pointer' }}
-                    onClick={() => handleDelete(card._id)}
-                  >
-                    Delete
-                  </span>
-                </div>
-              </FlashcardMeta>
-            </FlashcardCard>
-          ))}
-        </FlashcardGrid>
+            )}
+            <FlashcardMeta>
+              <div>From note: {card.noteReference?.title || 'No note'}</div>
+              <div>Next review: {formatDate(card.nextReview)}</div>
+              <CardActions>
+                <PreviewButton onClick={() => handlePreview(card)}>
+                  Preview
+                </PreviewButton>
+                <ActionButton onClick={() => navigate(`/flashcards/${card._id}`)}>
+                  Edit
+                </ActionButton>
+                <ActionButton danger onClick={() => handleDelete(card._id)}>
+                  Delete
+                </ActionButton>
+              </CardActions>
+            </FlashcardMeta>
+          </FlashcardCard>
+        ))}
+      </FlashcardGrid>
+      
+      {filteredFlashcards.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+          No flashcards found. {searchTerm || filterTag ? 'Try adjusting your filters.' : ''}
+        </div>
+      )}
+
+      {previewCard && (
+        <Modal onClick={closePreview}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <CloseButton onClick={closePreview}>&times;</CloseButton>
+            <h3>Preview Flashcard</h3>
+            <div style={{ marginBottom: '20px' }}>
+              <strong>Question:</strong>
+              <div style={{ marginTop: '10px' }}>{previewCard.question}</div>
+            </div>
+            {showAnswer ? (
+              <div>
+                <strong>Answer:</strong>
+                <div style={{ marginTop: '10px' }}>{previewCard.answer}</div>
+              </div>
+            ) : (
+              <ActionButton onClick={() => setShowAnswer(true)}>
+                Show Answer
+              </ActionButton>
+            )}
+          </ModalContent>
+        </Modal>
       )}
     </Container>
   );

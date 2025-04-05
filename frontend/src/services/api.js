@@ -15,17 +15,23 @@ export const getNote = (id) => api.get(`/notes/${id}`);
 export const createNote = (data) => api.post('/notes', data);
 export const updateNote = (id, data) => api.put(`/notes/${id}`, data);
 export const deleteNote = (id) => api.delete(`/notes/${id}`);
+export const getNotesByTag = (tag) => api.get(`/notes/tag/${tag}`);
+export const getAllTags = () => api.get('/notes/tags');
 
 // Flashcards API
 export const getFlashcards = () => api.get('/flashcards');
+export const getDueFlashcards = () => api.get('/flashcards/due');
 export const getFlashcard = (id) => api.get(`/flashcards/${id}`);
 export const createFlashcard = (data) => api.post('/flashcards', data);
 export const updateFlashcard = (id, data) => api.put(`/flashcards/${id}`, data);
 export const deleteFlashcard = (id) => api.delete(`/flashcards/${id}`);
 export const reviewFlashcard = (id, data) => api.post(`/flashcards/${id}/review`, data);
+export const getFlashcardsByNote = (noteId) => api.get(`/flashcards/note/${noteId}`);
 
 // Graph API
-export const getGraph = () => api.get('/notes/graph');
+export const getGraph = () => api.get('/graph');
+export const addLink = (sourceId, targetId) => api.post('/graph/link', { sourceId, targetId });
+export const removeLink = (sourceId, targetId) => api.delete('/graph/link', { data: { sourceId, targetId } });
 
 // Error interceptor
 api.interceptors.response.use(
