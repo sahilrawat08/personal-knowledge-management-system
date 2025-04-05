@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-import axios from 'axios';
+import { getNotes, deleteNote as deleteNoteApi } from '../../services/api';
 
 const NotesContainer = styled.div`
   padding: 1rem;
@@ -63,43 +63,90 @@ const DeleteButton = styled.button`
   }
 `;
 
+const ErrorMessage = styled.div`
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+`;
+
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  color: #666;
+`;
+
+const CreateNoteButton = styled(Link)`
+  display: inline-block;
+  background-color: #0066cc;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  text-decoration: none;
+  margin-bottom: 1rem;
+  
+  &:hover {
+    background-color: #0052a3;
+  }
+`;
+
 const NotesList = () => {
   const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/notes');
-        setNotes(response.data);
-      } catch (error) {
-        console.error('Error fetching notes:', error);
-      }
-    };
-    
     fetchNotes();
   }, []);
   
-  const deleteNote = async (id) => {
+  const fetchNotes = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getNotes();
+      setNotes(response.data);
+    } catch (error) {
+      setError('Failed to fetch notes. Please try again later.');
+      console.error('Error fetching notes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDeleteNote = async (id) => {
     if (window.confirm('Are you sure you want to delete this note?')) {
       try {
-        await axios.delete(`http://localhost:5000/api/notes/${id}`);
+        await deleteNoteApi(id);
         setNotes(notes.filter(note => note._id !== id));
       } catch (error) {
+        setError('Failed to delete note. Please try again later.');
         console.error('Error deleting note:', error);
       }
     }
   };
   
   const getExcerpt = (content, maxLength = 150) => {
+    if (!content) return '';
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
   };
   
+  if (loading) {
+    return <LoadingSpinner>Loading notes...</LoadingSpinner>;
+  }
+  
   return (
     <NotesContainer>
       <h1>My Notes</h1>
-      {notes.length === 0 ? (
-        <p>No notes yet. <Link to="/note/new">Create your first note</Link></p>
+      <CreateNoteButton to="/notes/new">Create New Note</CreateNoteButton>
+      
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      
+      {!loading && notes.length === 0 ? (
+        <p>No notes yet. Create your first note to get started!</p>
       ) : (
         notes.map(note => (
           <NoteCard key={note._id}>
@@ -115,9 +162,9 @@ const NotesList = () => {
             )}
             
             <ActionLinks>
-              <ActionLink to={`/note/${note._id}`}>View</ActionLink>
-              <ActionLink to={`/note/edit/${note._id}`}>Edit</ActionLink>
-              <DeleteButton onClick={() => deleteNote(note._id)}>
+              <ActionLink to={`/notes/${note._id}`}>View</ActionLink>
+              <ActionLink to={`/notes/edit/${note._id}`}>Edit</ActionLink>
+              <DeleteButton onClick={() => handleDeleteNote(note._id)}>
                 Delete
               </DeleteButton>
             </ActionLinks>

@@ -1,5 +1,5 @@
-// frontend/src/components/GraphView.js (continued)
-import React, { useState, useEffect, useRef } from 'react';
+// frontend/src/components/GraphView.js
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
@@ -18,53 +18,14 @@ const GraphCanvas = styled.div`
 `;
 
 const GraphView = () => {
-  const [notes, setNotes] = useState([]);
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const svgRef = useRef(null);
   const navigate = useNavigate();
   
-  useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/notes');
-        setNotes(response.data);
-        
-        // Transform notes data into graph data
-        const nodes = response.data.map(note => ({
-          id: note._id,
-          title: note.title,
-          tags: note.tags || []
-        }));
-        
-        // Create links array
-        const links = [];
-        response.data.forEach(note => {
-          if (note.links && note.links.length > 0) {
-            note.links.forEach(targetId => {
-              links.push({
-                source: note._id,
-                target: targetId
-              });
-            });
-          }
-        });
-        
-        setGraphData({ nodes, links });
-      } catch (error) {
-        console.error('Error fetching notes for graph:', error);
-      }
-    };
+  // Define renderGraph with useCallback to avoid recreation on each render
+  const renderGraph = useCallback(() => {
+    if (!svgRef.current) return;
     
-    fetchNotes();
-  }, []);
-  
-  useEffect(() => {
-    if (graphData.nodes.length > 0) {
-      renderGraph();
-    }
-  }, [graphData]);
-  
-  const renderGraph = () => {
     const width = svgRef.current.clientWidth;
     const height = svgRef.current.clientHeight;
     
@@ -158,7 +119,48 @@ const GraphView = () => {
         .on("drag", dragged)
         .on("end", dragended);
     }
-  };
+  }, [graphData, navigate]); // Include dependencies
+  
+  // Fetch notes and create graph data
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/notes');
+        // Transform notes data into graph data
+        const nodes = response.data.map(note => ({
+          id: note._id,
+          title: note.title,
+          tags: note.tags || []
+        }));
+        
+        // Create links array
+        const links = [];
+        response.data.forEach(note => {
+          if (note.links && note.links.length > 0) {
+            note.links.forEach(targetId => {
+              links.push({
+                source: note._id,
+                target: targetId
+              });
+            });
+          }
+        });
+        
+        setGraphData({ nodes, links });
+      } catch (error) {
+        console.error('Error fetching notes for graph:', error);
+      }
+    };
+    
+    fetchNotes();
+  }, []);
+  
+  // Render graph when data changes
+  useEffect(() => {
+    if (graphData.nodes.length > 0) {
+      renderGraph();
+    }
+  }, [graphData, renderGraph]); // Include renderGraph in dependencies
   
   return (
     <GraphContainer>

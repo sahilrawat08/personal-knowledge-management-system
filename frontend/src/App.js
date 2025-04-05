@@ -16,7 +16,7 @@ import GraphView from './components/notes/GraphView';
 // Flashcard components
 import FlashcardList from './components/flashcards/FlashcardList';
 import CreateFlashcard from './components/flashcards/CreateFlashcard';
-import FlashcardReview from './components/flashcards/FlashcardReview';
+import FlashcardReview from './components/flashcards/FlashCardReview';
 
 const AppContainer = styled.div`
   display: flex;
